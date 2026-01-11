@@ -1,0 +1,628 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>D&D Master Tool: Final Version</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --iron: #8c8c8c;
+            --bg-panel: rgba(18, 18, 18, 0.95);
+            --accent-red: #8a1c1c;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            /* Основной шрифт теперь Montserrat - он очень читаемый */
+            font-family: 'Montserrat', sans-serif;
+            background: #050505;
+            color: #ccc;
+            font-size: 13px;
+        }
+
+        /* --- Интерфейс --- */
+        .panel {
+            background: var(--bg-panel);
+            border: 2px solid var(--iron);
+            border-radius: 6px; /* Чуть мягче углы */
+            box-shadow: 0 0 15px rgba(0,0,0,0.9), inset 0 0 20px rgba(0,0,0,0.8);
+            position: absolute;
+            z-index: 100;
+        }
+
+        /* Заголовки оставляем в стиле Фэнтези */
+        h3 {
+            font-family: 'Cinzel', serif;
+            color: var(--iron);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 0;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        label {
+            color: #999;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .btn {
+            cursor: pointer;
+            background: #2a2a2a;
+            color: #ddd;
+            border: 1px solid #444;
+            padding: 10px;
+            /* Шрифт кнопок тоже Montserrat, жирный */
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: 0.2s;
+        }
+
+            .btn:hover {
+                background: #3a3a3a;
+                color: white;
+                border-color: var(--iron);
+            }
+
+        .btn-danger {
+            background: #4a1010;
+            border-color: #600;
+        }
+
+            .btn-danger:hover {
+                background: #7a1010;
+                border-color: #f00;
+            }
+
+        .active {
+            background: var(--accent-red) !important;
+            color: white !important;
+            border-color: #ff4444 !important;
+        }
+
+        /* --- Панели --- */
+        #left-panel {
+            top: 80px;
+            left: 20px;
+            width: 180px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+        }
+
+        #right-panel {
+            top: 80px;
+            right: 20px;
+            width: 250px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        #top-panel {
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+
+        #initiative-list {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            max-width: 400px;
+            scrollbar-width: none;
+        }
+
+        .init-card {
+            background: #222;
+            border: 1px solid #555;
+            padding: 4px 10px;
+            min-width: 60px;
+            text-align: center;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+            .init-card.turn {
+                border-color: var(--accent-red);
+                background: #500;
+                color: white;
+                box-shadow: 0 0 10px var(--accent-red);
+            }
+
+        /* --- Поле и Токены --- */
+        #map-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #111;
+        }
+
+        #map-canvas {
+            position: relative;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 98%;
+            height: 98%;
+        }
+
+        #fog-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20;
+            pointer-events: none;
+            mix-blend-mode: multiply;
+        }
+
+        #grid-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .token {
+            position: absolute;
+            border-radius: 50%;
+            border: 3px solid silver;
+            box-shadow: 0 0 0 1px #000, 0 5px 10px rgba(0,0,0,0.8);
+            cursor: grab;
+            background-size: cover;
+            background-position: center;
+            z-index: 30;
+        }
+
+        #ruler {
+            position: absolute;
+            pointer-events: none;
+            height: 12px;
+            background: repeating-linear-gradient(90deg, transparent 0, transparent 2px, var(--iron) 2px, var(--iron) 8px, transparent 8px, transparent 10px);
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.8);
+            transform-origin: center left;
+            z-index: 40;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #ruler-text {
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 4px 8px;
+            border: 1px solid var(--iron);
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            position: absolute;
+            top: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+        }
+
+        #context-menu {
+            display: none;
+            padding: 12px;
+            width: 200px;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--iron);
+            margin-bottom: 5px;
+        }
+
+        select {
+            background: #222;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 6px;
+            width: 100%;
+            border-radius: 4px;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        /* --- Результат дайсов (Геометрия) --- */
+        #dice-result {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 160px;
+            height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            font-weight: bold;
+            color: white;
+            /* Шрифт цифр на кубиках оставляем Cinzel для красоты */
+            font-family: 'Cinzel', serif;
+            background: var(--accent-red);
+            z-index: 200;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            filter: drop-shadow(0 0 20px rgba(255, 0, 0, 0.6));
+        }
+
+        .shape-d4 {
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            padding-top: 25px;
+        }
+
+        .shape-d6 {
+            border-radius: 16px;
+        }
+
+        .shape-d8 {
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        }
+
+        .shape-d10 {
+            clip-path: polygon(50% 0%, 100% 25%, 50% 100%, 0% 25%);
+            padding-bottom: 15px;
+        }
+
+        .shape-d12 {
+            clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+        }
+
+        .shape-d20 {
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+        }
+
+        .dice-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="top-panel" class="panel">
+        <div style="font-size:11px; color:#888; font-weight:bold;">ИНИЦИАТИВА</div>
+        <div id="initiative-list"></div>
+        <div style="display:flex; gap:5px;">
+            <button class="btn" onclick="addInitiative()">+ Перс</button>
+            <button class="btn btn-danger" onclick="nextTurn()">След. Ход ⚔️</button>
+        </div>
+    </div>
+
+    <div id="left-panel" class="panel">
+        <button class="btn" style="width: 100%" onclick="document.getElementById('upload-map').click()">Загрузить Карту</button>
+        <button class="btn" style="width: 100%" onclick="createToken()">Новый Герой</button>
+        <button id="fog-btn" class="btn" style="width: 100%" onclick="toggleFog()">Туман Войны</button>
+        <button class="btn" style="width: 100%" onclick="resetFog()">Открыть Карту</button>
+        <a href="index.html" class="btn" style="text-decoration:none; width: 100%; border-color: #555; color: #888;">
+            ⬅ В МЕНЮ
+        </a>
+    </div>
+
+    <div id="right-panel" class="panel">
+        <div>
+            <h3>Бросок Костей</h3>
+            <div class="dice-grid">
+                <button class="btn" onclick="rollDice(4)">d4</button>
+                <button class="btn" onclick="rollDice(6)">d6</button>
+                <button class="btn" onclick="rollDice(8)">d8</button>
+                <button class="btn" onclick="rollDice(10)">d10</button>
+                <button class="btn" onclick="rollDice(12)">d12</button>
+                <button class="btn" style="color:#ffaaaa; border-color:#844" onclick="rollDice(20)">d20</button>
+            </div>
+        </div>
+        <hr style="border-color:#333; width:100%">
+        <div>
+            <h3>Сетка (Grid)</h3>
+            <label style="margin-top:10px">Масштаб (Zoom)</label>
+            <input type="range" id="gridSizeRange" min="20" max="150" value="50" oninput="updateGridSettings()">
+            <label style="margin-top:10px">Правила (PHB)</label>
+            <select id="gridScale" onchange="updateGridSettings()">
+                <option value="5">1 кл = 5 фт (Стандарт)</option>
+                <option value="10">1 кл = 10 фт (Улица)</option>
+                <option value="20">1 кл = 20 фт (Мир)</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="map-container">
+        <div id="map-canvas">
+            <canvas id="fog-canvas"></canvas>
+            <div id="grid-layer"></div>
+            <div id="ruler"><div id="ruler-text">0 ft</div></div>
+        </div>
+    </div>
+
+    <div id="dice-result"></div>
+
+    <input type="file" id="upload-map" style="display:none" accept="image/*">
+    <input type="file" id="upload-token-img" style="display:none" accept="image/*">
+
+    <div id="context-menu" class="panel">
+        <label>Размер существа</label>
+        <select id="tokenScale" onchange="updateTokenVisuals()">
+            <option value="1">Medium (1x1)</option>
+            <option value="2">Large (2x2)</option>
+            <option value="3">Huge (3x3)</option>
+            <option value="4">Gargantuan (4x4)</option>
+        </select>
+        <label style="margin-top:10px">Освещение</label>
+        <select id="tokenLight" onchange="updateTokenVisuals()">
+            <option value="none">Нет</option>
+            <option value="torch">Факел (20/40)</option>
+            <option value="light">Свет (20/20)</option>
+            <option value="darkvision">Темное зрение</option>
+        </select>
+        <button class="btn" style="margin-top:10px; width:100%" onclick="document.getElementById('upload-token-img').click()">Сменить портрет</button>
+        <button class="btn btn-danger" style="margin-top:5px; width:100%" onclick="deleteToken()">Удалить</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('map-canvas');
+        const fogCanvas = document.getElementById('fog-canvas');
+        const ctx = fogCanvas.getContext('2d');
+        const gridLayer = document.getElementById('grid-layer');
+        const menu = document.getElementById('context-menu');
+        const ruler = document.getElementById('ruler');
+
+        let isFogActive = false;
+        let currentToken = null;
+        let GRID_PX = 50;
+        let FT_PER_GRID = 5;
+        let diceTimeout;
+
+        function rollDice(sides) {
+            const result = Math.floor(Math.random() * sides) + 1;
+            const display = document.getElementById('dice-result');
+            display.className = '';
+            display.style.backgroundColor = '#8a1c1c';
+
+            if (sides === 4) display.classList.add('shape-d4');
+            else if (sides === 6) display.classList.add('shape-d6');
+            else if (sides === 8) display.classList.add('shape-d8');
+            else if (sides === 10) display.classList.add('shape-d10');
+            else if (sides === 12) display.classList.add('shape-d12');
+            else if (sides === 20) {
+                display.classList.add('shape-d20');
+                if (result === 20) display.style.backgroundColor = '#2ecc71';
+                else if (result === 1) display.style.backgroundColor = '#e74c3c';
+            }
+
+            display.innerText = result;
+            display.style.opacity = 1;
+
+            clearTimeout(diceTimeout);
+            diceTimeout = setTimeout(() => { display.style.opacity = 0; }, 3000);
+        }
+
+        function addInitiative() {
+            const name = prompt("Имя участника:", "Гоблин");
+            if (!name) return;
+            const roll = prompt("Инициатива:", Math.floor(Math.random() * 20) + 1);
+            const card = document.createElement('div');
+            card.className = 'init-card';
+            card.innerText = `${name} (${roll})`;
+            card.onclick = () => card.remove();
+            document.getElementById('initiative-list').appendChild(card);
+            sortInitiative();
+        }
+
+        function sortInitiative() {
+            const list = document.getElementById('initiative-list');
+            Array.from(list.children)
+                .sort((a, b) => {
+                    const numA = parseInt(a.innerText.match(/\((\d+)\)/)[1] || 0);
+                    const numB = parseInt(b.innerText.match(/\((\d+)\)/)[1] || 0);
+                    return numB - numA;
+                })
+                .forEach(node => list.appendChild(node));
+        }
+
+        function nextTurn() {
+            const list = document.getElementById('initiative-list');
+            if (list.children.length === 0) return;
+            const current = list.querySelector('.turn');
+            if (current) current.classList.remove('turn');
+            let next = current ? current.nextElementSibling : list.firstElementChild;
+            if (!next) next = list.firstElementChild;
+            next.classList.add('turn');
+        }
+
+        function updateGridSettings() {
+            GRID_PX = parseInt(document.getElementById('gridSizeRange').value);
+            FT_PER_GRID = parseInt(document.getElementById('gridScale').value);
+            gridLayer.style.backgroundSize = `${GRID_PX}px ${GRID_PX}px`;
+            gridLayer.style.backgroundImage = `linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px)`;
+            document.querySelectorAll('.token').forEach(t => {
+                const size = t.getAttribute('data-scale') || 1;
+                t.style.width = (GRID_PX * size) + 'px';
+                t.style.height = (GRID_PX * size) + 'px';
+                snapToGrid(t);
+            });
+            updateFog();
+        }
+
+        function resizeFog() {
+            fogCanvas.width = canvas.offsetWidth;
+            fogCanvas.height = canvas.offsetHeight;
+            updateFog();
+        }
+        window.addEventListener('resize', resizeFog);
+
+        function updateFog() {
+            ctx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+            if (!isFogActive) return;
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = "rgba(0, 0, 0, 0.95)";
+            ctx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
+            ctx.globalCompositeOperation = 'destination-out';
+            document.querySelectorAll('.token').forEach(t => {
+                const x = t.offsetLeft + t.offsetWidth / 2;
+                const y = t.offsetTop + t.offsetHeight / 2;
+                const type = t.getAttribute('data-light');
+                if (type === 'torch') drawLight(x, y, 20, 40);
+                else if (type === 'light') drawLight(x, y, 20, 20);
+                else if (type === 'darkvision') drawLight(x, y, 0, 60);
+            });
+        }
+
+        function drawLight(x, y, brightFt, dimFt) {
+            const brightPx = (brightFt / FT_PER_GRID) * GRID_PX;
+            const dimPx = (dimFt / FT_PER_GRID) * GRID_PX;
+            const grad = ctx.createRadialGradient(x, y, 0, x, y, dimPx);
+            grad.addColorStop(0, "rgba(255, 255, 255, 1)");
+            if (brightPx > 0) grad.addColorStop(brightPx / dimPx, "rgba(255, 255, 255, 0.7)");
+            grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(x, y, dimPx, 0, Math.PI * 2); ctx.fill();
+        }
+
+        function toggleFog() {
+            isFogActive = !isFogActive;
+            const btn = document.getElementById('fog-btn');
+            btn.classList.toggle('active', isFogActive);
+            updateFog();
+        }
+
+        function createToken() {
+            const t = document.createElement('div');
+            t.className = 'token';
+            t.setAttribute('data-scale', 1);
+            t.setAttribute('data-light', 'none');
+            t.style.width = GRID_PX + 'px'; t.style.height = GRID_PX + 'px';
+            t.style.left = (canvas.offsetWidth / 2 - 25) + 'px';
+            t.style.top = (canvas.offsetHeight / 2 - 25) + 'px';
+            t.style.backgroundColor = '#222';
+            makeDraggable(t);
+            t.oncontextmenu = (e) => {
+                e.preventDefault(); currentToken = t;
+                menu.style.display = 'flex';
+                let left = e.pageX; let top = e.pageY;
+                if (left + 200 > window.innerWidth) left -= 200;
+                menu.style.left = left + 'px'; menu.style.top = top + 'px';
+                document.getElementById('tokenScale').value = t.getAttribute('data-scale');
+                document.getElementById('tokenLight').value = t.getAttribute('data-light');
+            };
+            canvas.appendChild(t);
+            updateFog();
+        }
+
+        function updateTokenVisuals() {
+            if (!currentToken) return;
+            const scale = document.getElementById('tokenScale').value;
+            const light = document.getElementById('tokenLight').value;
+            currentToken.setAttribute('data-scale', scale);
+            currentToken.setAttribute('data-light', light);
+            currentToken.style.width = (GRID_PX * scale) + 'px';
+            currentToken.style.height = (GRID_PX * scale) + 'px';
+            updateFog();
+            menu.style.display = 'none';
+        }
+
+        function snapToGrid(el) {
+            el.style.left = Math.round(parseInt(el.style.left) / GRID_PX) * GRID_PX + "px";
+            el.style.top = Math.round(parseInt(el.style.top) / GRID_PX) * GRID_PX + "px";
+        }
+
+        function makeDraggable(el) {
+            let x = 0, y = 0, sL, sT;
+            el.onmousedown = (e) => {
+                if (e.button !== 0) return;
+                x = e.clientX; y = e.clientY;
+                sL = el.offsetLeft; sT = el.offsetTop;
+                ruler.style.display = 'flex';
+                ruler.style.left = (sL + el.offsetWidth / 2) + 'px';
+                ruler.style.top = (sT + el.offsetHeight / 2) + 'px';
+                ruler.style.width = '0px';
+                document.onmousemove = (me) => {
+                    let dx = me.clientX - x; let dy = me.clientY - y;
+                    el.style.left = (sL + dx) + "px"; el.style.top = (sT + dy) + "px";
+                    let dPx = Math.sqrt(dx * dx + dy * dy);
+                    ruler.style.width = dPx + 'px';
+                    ruler.style.transform = `translateY(-50%) rotate(${Math.atan2(dy, dx)}rad)`;
+                    document.getElementById('ruler-text').innerText = Math.round(dPx / GRID_PX * FT_PER_GRID) + ' ft';
+                    updateFog();
+                };
+                document.onmouseup = () => {
+                    document.onmousemove = null;
+                    snapToGrid(el);
+                    ruler.style.display = 'none';
+                    updateFog();
+                };
+            };
+        }
+
+        document.getElementById('upload-map').onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const r = new FileReader();
+                r.onload = (ev) => {
+                    canvas.style.backgroundImage = `url('${ev.target.result}')`;
+                    setTimeout(resizeFog, 100);
+                };
+                r.readAsDataURL(file);
+            }
+        };
+
+        document.getElementById('upload-token-img').onchange = (e) => {
+            const file = e.target.files[0];
+            if (file && currentToken) {
+                const r = new FileReader();
+                r.onload = (ev) => { currentToken.style.backgroundImage = `url('${ev.target.result}')`; };
+                r.readAsDataURL(file);
+            }
+            menu.style.display = 'none';
+        };
+
+        function deleteToken() { currentToken.remove(); menu.style.display = 'none'; updateFog(); }
+        function resetFog() { updateFog(); }
+        window.onclick = (e) => { if (!e.target.closest('#context-menu') && !e.target.closest('.token')) menu.style.display = 'none'; };
+
+        updateGridSettings();
+    </script>
+</body>
+</html>
