@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Моя D&D Карта с токенами</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #2c3e50;
+            display: flex;
+            flex-direction: column; /* Изменил на колонку для контролов */
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Используем min-height для лучшей адаптации */
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #controls {
+            margin-bottom: 20px;
+            background-color: #34495e;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap; /* Для мобильной адаптации */
+        }
+
+        #controls input[type="file"], #controls button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        #controls input[type="file"] {
+            background-color: #ecf0f1;
+            color: #34495e;
+            flex-grow: 1; /* Чтобы поле занимало больше места */
+        }
+
+        #controls button {
+            background-color: #27ae60;
+            color: white;
+            transition: background-color 0.2s ease;
+        }
+
+        #controls button:hover {
+            background-color: #229954;
+        }
+
+        #map-container {
+            position: relative;
+            width: 800px; /* Увеличил размер для наглядности */
+            height: 600px;
+            background-color: #34495e; /* Заглушка, если нет картинки */
+            background-size: cover;
+            background-position: center;
+            border: 5px solid #8e44ad;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            overflow: hidden; /* Важно, чтобы токены не выходили за границы */
+            user-select: none; /* Предотвращает выделение текста при перетаскивании */
+        }
+
+        .grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(to right, rgba(255,255,255,0.2) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.2) 1px, transparent 1px);
+            background-size: 40px 40px; /* Размер клетки */
+            pointer-events: none; /* Важно, чтобы сетка не мешала кликать по токенам */
+        }
+
+        .token {
+            width: 36px;
+            height: 36px;
+            background-color: rgba(231, 76, 60, 0.8); /* Полупрозрачный красный */
+            border-radius: 50%;
+            border: 2px solid white;
+            position: absolute;
+            cursor: grab; /* Курсор "захват" */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+            transition: transform 0.1s ease-out; /* Плавное движение */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+            user-select: none; /* Предотвращает выделение текста токена */
+        }
+
+        .token.dragging {
+            cursor: grabbing; /* Курсор "захвачено" */
+            z-index: 1000; /* Перемещает токен на передний план */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <label for="mapImageUpload">Загрузить карту:</label>
+        <input type="file" id="mapImageUpload" accept="image/*">
+        <button id="addTokenButton">Создать токен</button>
+        <label for="tokenColor">Цвет токена:</label>
+        <input type="color" id="tokenColor" value="#e74c3c">
+    </div>
+
+    <div id="map-container">
+        <div class="grid"></div>
+        </div>
+
+    <script>
+        const mapContainer = document.getElementById('map-container');
+        const mapImageUpload = document.getElementById('mapImageUpload');
+        const addTokenButton = document.getElementById('addTokenButton');
+        const tokenColorInput = document.getElementById('tokenColor');
+        let tokenCount = 0; // Для уникальных номеров токенов
+
+        // --- Загрузка фоновой картинки карты ---
+        mapImageUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    mapContainer.style.backgroundImage = `url('${e.target.result}')`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // --- Создание нового токена ---
+        addTokenButton.addEventListener('click', () => {
+            tokenCount++;
+            const newToken = document.createElement('div');
+            newToken.classList.add('token');
+            newToken.textContent = tokenCount; // Номер токена
+            newToken.style.backgroundColor = tokenColorInput.value;
+
+            // Начальное положение токена (немного случайное, чтобы не накладывались)
+            const initialX = Math.floor(Math.random() * (mapContainer.clientWidth / 40)) * 40 + 2;
+            const initialY = Math.floor(Math.random() * (mapContainer.clientHeight / 40)) * 40 + 2;
+            newToken.style.left = `${initialX}px`;
+            newToken.style.top = `${initialY}px`;
+
+            mapContainer.appendChild(newToken);
+            makeDraggable(newToken); // Делаем токен перетаскиваемым
+        });
+
+        // --- Логика перетаскивания токенов ---
+        function makeDraggable(element) {
+            let isDragging = false;
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            // Начинаем перетаскивание при нажатии мыши
+            element.addEventListener('mousedown', dragStart);
+            // Заканчиваем перетаскивание при отпускании мыши (на всем документе, чтобы не потерять событие)
+            document.addEventListener('mouseup', dragEnd);
+            // Перемещаем токен при движении мыши
+            document.addEventListener('mousemove', drag);
+
+            function dragStart(e) {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+
+                if (e.target === element) {
+                    isDragging = true;
+                    element.classList.add('dragging'); // Добавляем класс для стилей
+                    // Получаем текущие смещения токена относительно его родителя
+                    const style = window.getComputedStyle(element);
+                    xOffset = e.clientX - parseFloat(style.left);
+                    yOffset = e.clientY - parseFloat(style.top);
+                }
+            }
+
+            function dragEnd(e) {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+                element.classList.remove('dragging');
+
+                // Привязка к сетке после перетаскивания
+                snapToGrid(element);
+            }
+
+            function drag(e) {
+                if (isDragging) {
+                    e.preventDefault(); // Предотвращаем стандартное поведение браузера (например, выделение текста)
+
+                    currentX = e.clientX - xOffset;
+                    currentY = e.clientY - yOffset;
+
+                    // Ограничиваем движение токена внутри mapContainer
+                    const containerRect = mapContainer.getBoundingClientRect();
+                    const elementRect = element.getBoundingClientRect();
+
+                    let newLeft = currentX;
+                    let newTop = currentY;
+
+                    // Проверяем левую и верхнюю границы
+                    if (newLeft < 0) newLeft = 0;
+                    if (newTop < 0) newTop = 0;
+
+                    // Проверяем правую и нижнюю границы
+                    if (newLeft + elementRect.width > containerRect.width) {
+                        newLeft = containerRect.width - elementRect.width;
+                    }
+                    if (newTop + elementRect.height > containerRect.height) {
+                        newTop = containerRect.height - elementRect.height;
+                    }
+
+                    element.style.left = `${newLeft}px`;
+                    element.style.top = `${newTop}px`;
+                }
+            }
+
+            // Функция привязки токена к сетке
+            function snapToGrid(element) {
+                const gridSize = 40; // Размер клетки сетки
+                let currentLeft = parseFloat(element.style.left);
+                let currentTop = parseFloat(element.style.top);
+
+                // Вычисляем ближайшую позицию по сетке
+                let snappedLeft = Math.round(currentLeft / gridSize) * gridSize;
+                let snappedTop = Math.round(currentTop / gridSize) * gridSize;
+
+                // Убеждаемся, что токен остаётся внутри контейнера после привязки
+                const containerRect = mapContainer.getBoundingClientRect();
+                const elementRect = element.getBoundingClientRect();
+
+                if (snappedLeft < 0) snappedLeft = 0;
+                if (snappedTop < 0) snappedTop = 0;
+                if (snappedLeft + elementRect.width > containerRect.width) {
+                    snappedLeft = containerRect.width - elementRect.width;
+                }
+                if (snappedTop + elementRect.height > containerRect.height) {
+                    snappedTop = containerRect.height - elementRect.height;
+                }
+
+                element.style.left = `${snappedLeft}px`;
+                element.style.top = `${snappedTop}px`;
+
+                // Обновляем смещение для следующего перетаскивания
+                xOffset = 0; // Сбрасываем, так как положение теперь относительно сетки
+                yOffset = 0;
+            }
+        }
+    </script>
+
+</body>
+</html>
